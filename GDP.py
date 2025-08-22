@@ -274,7 +274,8 @@ def plotting(
     this_year,
     label_extension,
     real_gdp_quarterly_growth,
-    tax_to_gdp_ratio
+    tax_to_gdp_ratio,
+    quarterly_inflation
 ):
     
     quarterly_new_loans = estimate_canada_proxy_loans(start_year=1905, end_year=this_year + years_to_predict)
@@ -340,6 +341,7 @@ def plotting(
     plt.plot(years, balances, label="Federal Debt - Baseline", color="royalblue", linestyle="--")
     plt.plot(years_covid, balances_covid, label="Federal Debt - COVID Scenario", color="crimson")
     plt.plot(years_covid, real_gdp_quarterly_growth, label="GDP (Projected - Real Quarterly Growth)", color="green", linestyle="-.")
+    plt.plot(years_covid, quarterly_inflation, label="Inflation X 100000 (fit)", color="red", linestyle="-")
     # Optionally, could plot a best fit GDP as well if needed
 
     if unsustainable:
@@ -368,6 +370,20 @@ def plotting(
     else:
         # Return estimated debt growth compared to GDP end value
         return debt_growth_a / real_gdp_quarterly_growth[-1]*4 * 100, None
+
+def generate_quarterly_inflation_series(historical_data, multiplier):
+    """
+    Generates a list of quarterly inflation rates (as decimals) based on annual inflation rates.
+    Assumes quarterly compounding.
+    """
+    quarterly_inflation_rates = []
+    for year_data in historical_data:
+        annual_inflation_pct = year_data["inflation"]
+        annual_rate = annual_inflation_pct / 100
+        quarterly_rate = (1 + annual_rate) ** (1/4) - 1
+        quarterly_rate = quarterly_rate * multiplier
+        quarterly_inflation_rates.extend([quarterly_rate] * 4)
+    return quarterly_inflation_rates
 
 def compute_real_gdp_per_capita_growth(data, initial_gdp, initial_population=5.37):  # e.g., 5.37 million in 1905
     results = []
@@ -520,15 +536,15 @@ def generate_canada_historical_data(years_projection, gdp_growth):
         if year < this_year:
             data = {
                 "year": year,
-                "nominal_gdp_growth": nominal_gdp_by_year.get(year, 1.5),
-                "inflation": round(inflation_by_year.get(year, 2.0), 2),
+                "nominal_gdp_growth": nominal_gdp_by_year.get(year, 1.4),
+                "inflation": round(inflation_by_year.get(year, 1.7), 2), # 1.7 base points standard (ALMOST MAGIC)
                 "population_growth": round(pop_growth_by_year.get(year, 0.2), 2), #0.2% increase by default. (~ 83000 in 2025 over 41 500 000 habitants)
             }
         else:
             data = {
                 "year": year,
                 "nominal_gdp_growth": nominal_gdp_by_year.get(year, gdp_growth),
-                "inflation": round(inflation_by_year.get(year, 2.0), 2),
+                "inflation": round(inflation_by_year.get(year, 1.7), 2), # 1.7 base points standard (ALMOST MAGIC)
                 "population_growth": round(pop_growth_by_year.get(year, 0.2), 2), #0.2% increase by default. (~ 83000 in 2025 over 41 500 000 habitants)
             }
         historical_data.append(data)
@@ -538,7 +554,6 @@ def generate_canada_historical_data(years_projection, gdp_growth):
 
 
 if __name__ == "__main__":
-
     confederation_year = 1867
     this_year = 2025
     initial_debt = 0.275    # 275 million in 1905
@@ -554,27 +569,48 @@ if __name__ == "__main__":
 
     historical_data = generate_canada_historical_data(years_to_predict_50, gdp_growth)
 
+    quarterly_inflation = generate_quarterly_inflation_series(historical_data, 100000)
+
     yearly_real_gdp = compute_real_gdp_per_capita_growth(historical_data, initial_gdp)
 
     real_gdp_1905_2075_Q1_Q4 = [g for entry in yearly_real_gdp for g in entry["quarterly_real_gdp"]]
                                                                               
-    ratio_50 , unsustainable = plotting(initial_debt, annual_rate, initial_gdp, years_to_predict_50, this_year, f"{years_to_predict_50} years",real_gdp_1905_2075_Q1_Q4, hst)
+    ratio_50 , unsustainable = plotting(initial_debt, annual_rate, initial_gdp, years_to_predict_50, this_year, f"{years_to_predict_50} years",real_gdp_1905_2075_Q1_Q4, hst, quarterly_inflation)
+
+    total_inflation = 0
+    for quarter_inflation in quarterly_inflation:
+        quarter_inflation = quarter_inflation / 100000
+        total_inflation += quarter_inflation
+    average_inflation = total_inflation / len(quarterly_inflation) * 100
+
 
     if not unsustainable:
         years_to_predict = 300
 
         historical_data = generate_canada_historical_data(years_to_predict, gdp_growth)
 
+        quarterly_inflation = generate_quarterly_inflation_series(historical_data, 100000)
+
         yearly_real_gdp = compute_real_gdp_per_capita_growth(historical_data, initial_gdp)
 
         real_gdp_1905_2325_Q1_Q4 = [g for entry in yearly_real_gdp for g in entry["quarterly_real_gdp"]]
 
-        ratio_300, unsustainable = plotting(initial_debt, annual_rate, initial_gdp,years_to_predict, this_year, f"{years_to_predict} years",  real_gdp_1905_2325_Q1_Q4, hst)
+        ratio_300, unsustainable = plotting(initial_debt, annual_rate, initial_gdp, years_to_predict, this_year, f"{years_to_predict} years",  real_gdp_1905_2325_Q1_Q4, hst, quarterly_inflation)
+
+        total_inflation = 0
+        for quarter_inflation in quarterly_inflation:
+            quarter_inflation = quarter_inflation / 100000
+            total_inflation += quarter_inflation
+        average_inflation = total_inflation / len(quarterly_inflation) * 100
+
+
         if unsustainable:
             print(f"RESULT: At year {unsustainable-confederation_year} after Confederation of Canada, taxes alone will not support repayment of the federal debt!")
             print(f"This leaves us...{unsustainable-this_year} years to react.")
+            print(f"Average Inflation = {average_inflation:.2f} %")
         else:
             print("RESULT: GDP ADJUSTED TO DEBT GROWTH!")
     else:
         print(f"RESULT: At year {unsustainable-confederation_year} after Confederation of Canada, taxes alone will not support repayment of the federal debt!")
         print(f"This leaves us...{unsustainable-this_year} years to react.")
+        print(f"Average Inflation = {average_inflation:.2f} %")
