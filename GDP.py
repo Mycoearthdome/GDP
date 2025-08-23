@@ -275,7 +275,8 @@ def plotting(
     label_extension,
     real_gdp_quarterly_growth,
     tax_to_gdp_ratio,
-    quarterly_inflation
+    quarterly_inflation,
+    crisis_loans
 ):
     
     quarterly_new_loans = estimate_canada_proxy_loans(start_year=1905, end_year=this_year + years_to_predict)
@@ -287,15 +288,6 @@ def plotting(
         years_to_predict,
         loan_growth_rate=dynamic_loan_growth,
         crisis_loans=crisis_loans
-    )
-
-    schedule, total_interest = generate_federal_debt_schedule_predictive(
-        initial_debt,
-        annual_rate,
-        quarterly_new_loans,
-        years_to_predict,
-        loan_growth_rate=dynamic_loan_growth,
-        crisis_loans=None
     )
 
     print_quarterly_schedule(schedule_covid, total_interest, max_rows=len(schedule_covid))
@@ -311,17 +303,15 @@ def plotting(
 
     years_covid = [f"{entry['Year']} {entry['Quarter']}" for entry in schedule_covid]
     balances_covid = [entry["Balance End (CAD bn)"] for entry in schedule_covid]
-    years = [f"{entry['Year']} {entry['Quarter']}" for entry in schedule]
-    balances = [entry["Balance End (CAD bn)"] for entry in schedule]
 
     unsustainable = find_unsustainable_tax_quarter_quarterly(schedule_covid, this_year, initial_gdp, real_gdp_quarterly_growth, tax_to_gdp_ratio=tax_to_gdp_ratio)
     if unsustainable:
         print("\n🚨 Fiscal Unsustainability Detected")
         print(f"Quarter: {unsustainable['Year']} {unsustainable['Quarter']}")
-        print(f"Required Debt Payment: CAD {unsustainable['Required Payment']:.2f}")
-        print(f"Available Tax Revenue: CAD {unsustainable['Tax Revenue']:.2f}")
-        print(f"Debt: CAD {unsustainable['Debt']:.2f}")
-        print(f"GDP: CAD {unsustainable['GDP']:.2f}")
+        print(f"Required Debt Payment: CAD {unsustainable['Required Payment']:.2f} Billion")
+        print(f"Available Tax Revenue: CAD {unsustainable['Tax Revenue']:.2f} Billion")
+        print(f"Debt: CAD {unsustainable['Debt']:.2f} Billion")
+        print(f"GDP: CAD {unsustainable['GDP']:.2f} Billion")
         print(f"Debt:GDP ratio = {unsustainable['Debt'] / unsustainable['GDP'] * 100:.2f} %")
     else:
         print("\n✅ Taxes can cover debt payments within projection window.")
@@ -338,10 +328,9 @@ def plotting(
     # Plot
     plt.figure(figsize=(16, 6))
 
-    plt.plot(years, balances, label="Federal Debt - Baseline", color="royalblue", linestyle="--")
     plt.plot(years_covid, balances_covid, label="Federal Debt - COVID Scenario", color="crimson")
     plt.plot(years_covid, real_gdp_quarterly_growth, label="GDP (Projected - Real Quarterly Growth)", color="green", linestyle="-.")
-    plt.plot(years_covid, quarterly_inflation, label="Inflation X 100000 (fit)", color="red", linestyle="-")
+    #plt.plot(years_covid, quarterly_inflation, label="Inflation X 100000 (fit)", color="red", linestyle="-")
     # Optionally, could plot a best fit GDP as well if needed
 
     if unsustainable:
@@ -537,21 +526,52 @@ def generate_canada_historical_data(years_projection, gdp_growth):
             data = {
                 "year": year,
                 "nominal_gdp_growth": nominal_gdp_by_year.get(year, 1.4),
-                "inflation": round(inflation_by_year.get(year, 1.7), 2), # 1.7 base points standard (ALMOST MAGIC)
+                "inflation": round(inflation_by_year.get(year, 1.75+0.25), 2), # Defaults to BoC Rate + 0.25 base points
                 "population_growth": round(pop_growth_by_year.get(year, 0.2), 2), #0.2% increase by default. (~ 83000 in 2025 over 41 500 000 habitants)
             }
         else:
             data = {
                 "year": year,
                 "nominal_gdp_growth": nominal_gdp_by_year.get(year, gdp_growth),
-                "inflation": round(inflation_by_year.get(year, 1.7), 2), # 1.7 base points standard (ALMOST MAGIC)
+                "inflation": round(inflation_by_year.get(year, 1.75+0.25), 2), # Defaults to BoC Rate + 0.25 base points
                 "population_growth": round(pop_growth_by_year.get(year, 0.2), 2), #0.2% increase by default. (~ 83000 in 2025 over 41 500 000 habitants)
             }
         historical_data.append(data)
 
     return historical_data
 
+def Federal_Debt_Acquisition_Boc_Revenues(historical_data, crisis_loans):
 
+    Base_year = 1905
+
+    BoC_Rate = 0.0175 # 1.75 percent
+
+    quarterly_inflation = generate_quarterly_inflation_series(historical_data, 1)
+
+    yearly_real_gdp = compute_real_gdp_per_capita_growth(historical_data, initial_gdp)
+
+    real_gdp_1905_2075_Q1_Q4 = [g for entry in yearly_real_gdp for g in entry["quarterly_real_gdp"]]
+
+    Sums_Collected = 0
+    Count = 1
+    for i, real_gdp in enumerate(real_gdp_1905_2075_Q1_Q4[:len(real_gdp_1905_2075_Q1_Q4)]):
+        if Count == 5:
+            Base_year += 1
+            Count = 1
+        if quarterly_inflation[i]*4 >= BoC_Rate:
+            Sums_Collected += BoC_Rate * real_gdp
+        else:
+            #BoC Borrows from the DEBT
+            Debt_Loan =  BoC_Rate * real_gdp
+            Sums_Collected += Debt_Loan
+            key = (Base_year, f"Q{Count}")
+            if key not in crisis_loans:
+                crisis_loans.update({key:{"amount": Debt_Loan, "term_years": 15, "interest_rate": 0.0175}}) # 15 years loans ??
+            else:
+                crisis_loans.update({key:{"amount": crisis_loans[key]["amount"] + Debt_Loan, "term_years": crisis_loans[key]["term_years"], "interest_rate": crisis_loans[key]["interest_rate"]}})
+        Count += 1
+    
+    return Sums_Collected, crisis_loans
 
 if __name__ == "__main__":
     confederation_year = 1867
@@ -569,13 +589,15 @@ if __name__ == "__main__":
 
     historical_data = generate_canada_historical_data(years_to_predict_50, gdp_growth)
 
+    BoC_Sums_Collected, crisis_loans = Federal_Debt_Acquisition_Boc_Revenues(historical_data, crisis_loans)
+
     quarterly_inflation = generate_quarterly_inflation_series(historical_data, 100000)
 
     yearly_real_gdp = compute_real_gdp_per_capita_growth(historical_data, initial_gdp)
 
     real_gdp_1905_2075_Q1_Q4 = [g for entry in yearly_real_gdp for g in entry["quarterly_real_gdp"]]
                                                                               
-    ratio_50 , unsustainable = plotting(initial_debt, annual_rate, initial_gdp, years_to_predict_50, this_year, f"{years_to_predict_50} years",real_gdp_1905_2075_Q1_Q4, hst, quarterly_inflation)
+    ratio_50 , unsustainable = plotting(initial_debt, annual_rate, initial_gdp, years_to_predict_50, this_year, f"{years_to_predict_50} years",real_gdp_1905_2075_Q1_Q4, hst, quarterly_inflation, crisis_loans)
 
     total_inflation = 0
     for quarter_inflation in quarterly_inflation:
@@ -595,7 +617,7 @@ if __name__ == "__main__":
 
         real_gdp_1905_2325_Q1_Q4 = [g for entry in yearly_real_gdp for g in entry["quarterly_real_gdp"]]
 
-        ratio_300, unsustainable = plotting(initial_debt, annual_rate, initial_gdp, years_to_predict, this_year, f"{years_to_predict} years",  real_gdp_1905_2325_Q1_Q4, hst, quarterly_inflation)
+        ratio_300, unsustainable = plotting(initial_debt, annual_rate, initial_gdp, years_to_predict, this_year, f"{years_to_predict} years",  real_gdp_1905_2325_Q1_Q4, hst, quarterly_inflation, crisis_loans)
 
         total_inflation = 0
         for quarter_inflation in quarterly_inflation:
@@ -614,3 +636,5 @@ if __name__ == "__main__":
         print(f"RESULT: At year {unsustainable-confederation_year} after Confederation of Canada, taxes alone will not support repayment of the federal debt!")
         print(f"This leaves us...{unsustainable-this_year} years to react.")
         print(f"Average Inflation = {average_inflation:.2f} %")
+
+print(f"Bank of Canada MIGHT have collected {BoC_Sums_Collected} CAD Billion since 1905")
