@@ -616,7 +616,7 @@ if __name__ == "__main__":
     confederation_year = 1867
     this_year = 2025
     start_year = 2025
-    initial_debt = 1800    # 275 million in 1905 0.275 billion (default)
+    initial_debt = 1273.1    # 275 million in 1905 0.275 billion (default) 1,273.1 Billion (March 2025)
     annual_rate = 0.028
     initial_gdp = 2240    # 169 Billion in 1905 and 2240 for 2025 (2.24 trillion)
     gdp_growth = 1.6     # %%%%%%%%%%%%%%%%%%%%%%%%% 2025 %%%%%%%%%%%%%%%%%%%%%%% --> adjust this to today GDP growth percentage (%).
@@ -656,8 +656,20 @@ if __name__ == "__main__":
         ratio_300, unsustainable, BoC_Sums_Remaining= plotting(initial_gdp, this_year, f"{years_to_predict_300} years",real_gdp_2025_2325_Q1_Q4, corporate_tax, gdp_growth, schedule, total_interest, BoC_Sums_Collected)
 
         if unsustainable:
-            print(f"RESULT: At year {unsustainable-confederation_year} after Confederation of Canada, taxes alone will not support repayment of the federal debt!")
-            print(f"This leaves us...{unsustainable-this_year} years to react.")
+            print(f'!&&&&&&&                        &&&&&&&|')
+            print('|&&&&&&&                        &&&&&&&|')
+            print('|&&&&&&&                        &&&&&&&|')
+            print('|&&&&&&&         .\^/.          &&&&&&&|                      At year {unsustainable-confederation_year} after Confederation of Canada')
+            print('|&&&&&&&       . |&&&| .        &&&&&&&|')
+            print('|&&&&&&&       |\|&&&|/|        &&&&&&&|                              taxes alone will not support repayment of the federal debt!')
+            print("|&&&&&&&    .--'&&&&&&&'--.     &&&&&&&|")
+            print('|&&&&&&&     \&&&&&&&&&&&/      &&&&&&&|')
+            print('|&&&&&&&      >&&&&&&&&&<       &&&&&&&|')
+            print(f"|&&&&&&&     '~|/~~|~~\|~'      &&&&&&&|                                      This leaves us...{unsustainable-this_year} years to react.")
+            print('|&&&&&&&           |            &&&&&&&|')
+            print('|&&&&&&&                        &&&&&&&|')
+            print('|&&&&&&&                        &&&&&&&|')
+            print('|&&&&&&&________________________&&JGS&&|')
         else:
             print("                     _ooOoo_")
             print("                    o8888888o")
@@ -682,7 +694,7 @@ if __name__ == "__main__":
             print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             print("!!!!!!!!!!!!!! F I S C A L  P O L I C Y !!!!!!!!!!!!!!!!")
             print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            print("!!!!!!!!!!!!!!-== UNDER EMERGENCY ACT==-!!!!!!!!!!!!!!!!")
+            print("!!!!!!!!!!!!!!-== UNDER EMERGENCY ACT ==-!!!!!!!!!!!!!!!")
             print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             print("!!!!!!!!!!!!!!! --> FREED CASH FLOW <-- !!!!!!!!!!!!!!!!")
             print(f"!!!!!!!!!!!!!!! --> {BoC_Sums_Remaining:.2f} Billion <-- !!!!!!!!!!!!!!!!")
@@ -690,5 +702,17 @@ if __name__ == "__main__":
             print("! A L L  F E D E R A L  D E B T  P A I D  I N  F U L L !")
             print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     else:
-        print(f"RESULT: At year {unsustainable-confederation_year} after Confederation of Canada, taxes alone will not support repayment of the federal debt!")
-        print(f"This leaves us...{unsustainable-this_year} years to react.")
+        print(f'!&&&&&&&                        &&&&&&&|')
+        print('|&&&&&&&                        &&&&&&&|')
+        print('|&&&&&&&                        &&&&&&&|')
+        print('|&&&&&&&         .\^/.          &&&&&&&|                      At year {unsustainable-confederation_year} after Confederation of Canada')
+        print('|&&&&&&&       . |&&&| .        &&&&&&&|')
+        print('|&&&&&&&       |\|&&&|/|        &&&&&&&|                              taxes alone will not support repayment of the federal debt!')
+        print("|&&&&&&&    .--'&&&&&&&'--.     &&&&&&&|")
+        print('|&&&&&&&     \&&&&&&&&&&&/      &&&&&&&|')
+        print('|&&&&&&&      >&&&&&&&&&<       &&&&&&&|')
+        print(f"|&&&&&&&     '~|/~~|~~\|~'      &&&&&&&|                                      This leaves us...{unsustainable-this_year} years to react.")
+        print('|&&&&&&&           |            &&&&&&&|')
+        print('|&&&&&&&                        &&&&&&&|')
+        print('|&&&&&&&                        &&&&&&&|')
+        print('|&&&&&&&________________________&&JGS&&|')
