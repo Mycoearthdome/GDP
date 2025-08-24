@@ -55,8 +55,8 @@ def estimate_canada_proxy_loans(start_year=1905, end_year=2024):
 
     return quarterly_proxy
 
-def dynamic_loan_growth(i):
-    year = 1905 + i // 4
+def dynamic_loan_growth(i, start_year):
+    year = start_year + i // 4
     if 2020 <= year <= 2021:
         return 0.30  # QE era: 30% annual growth
     elif 2022 <= year <= 2024:
@@ -81,6 +81,7 @@ def generate_federal_debt_schedule_predictive(
     initial_debt,
     annual_interest_rate,
     quarterly_new_loans,
+    start_year,
     years_to_predict=5,
     loan_growth_rate=0.0,
     crisis_loans=None,
@@ -100,7 +101,7 @@ def generate_federal_debt_schedule_predictive(
     boc_repayments = []  # List of (start_index, [(interest, principal), ...])
 
     for i in range(1, total_quarters + 1):
-        year = 1905 + (i - 1) // 4
+        year = start_year + (i - 1) // 4
         quarter_num = (i - 1) % 4 + 1
         q_label = f"Q{quarter_num}"
 
@@ -166,7 +167,7 @@ def find_debt_gdp_crossover_quarterly(schedule, this_year, initial_gdp, quarterl
     return None
 
 
-def print_quarterly_schedule(schedule, total_interest_paid, outstanding_interest_balance, max_rows=20):
+def print_quarterly_schedule(schedule, outstanding_interest_balance, max_rows=20):
     headers = ["Year", "Quarter", "Interest", "New Loans", "Crisis", "BoC Interest", "BoC Principal", "Balance End"]
     widths = [6, 8, 14, 12, 10, 14, 15, 16]
     sep = "+" + "+".join("-" * w for w in widths) + "+"
@@ -189,7 +190,6 @@ def print_quarterly_schedule(schedule, total_interest_paid, outstanding_interest
     print(sep)
     if len(schedule) > max_rows:
         print(f"... ({len(schedule) - max_rows} more quarters)")
-    print(f"\nTotal interest paid over period: CAD {total_interest_paid:,.3f} Billion")
     print(f"Outstanding interest balance: CAD {outstanding_interest_balance:,.3f} Billion")
 
 
@@ -249,7 +249,7 @@ def estimate_exponential_growth_rate(values):
     return (end / start) ** (1 / periods) - 1
 
 
-def find_unsustainable_tax_quarter_quarterly(schedule, this_year, initial_gdp, quarterly_gdp_growth_series, tax_to_gdp_ratio=0.20):
+def find_unsustainable_tax_quarter_quarterly(schedule, initial_gdp, quarterly_gdp_growth_series, Boc_Sums_Collected, tax_to_gdp_ratio=0.20):
     """
     Find fiscal unsustainability quarter using quarterly GDP growth series.
     """
@@ -267,7 +267,7 @@ def find_unsustainable_tax_quarter_quarterly(schedule, this_year, initial_gdp, q
         else:
             gdp *= 1  # No growth assumed beyond data
 
-        if required_payment > revenue and entry["Year"] >= this_year:
+        if required_payment > revenue + Boc_Sums_Collected:
             return {
                "Year": entry["Year"],
                "Quarter": entry["Quarter"],
@@ -275,40 +275,23 @@ def find_unsustainable_tax_quarter_quarterly(schedule, this_year, initial_gdp, q
                "Tax Revenue": revenue,
                "Debt": entry["Balance End (CAD bn)"],
                "GDP": gdp
-            }
+            }, Boc_Sums_Collected-required_payment
         
-    return None
+    return None, Boc_Sums_Collected-required_payment
 
 def plotting(
-    initial_debt,
-    annual_rate,
     initial_gdp,
-    years_to_predict,
     this_year,
     label_extension,
     real_gdp_quarterly_growth,
     tax_to_gdp_ratio,
-    crisis_loans,
     gdp_growth_rate,
     schedule_covid=None,
-    total_interest_paid=None,
-    outstanding_interest_balance=None
-
+    outstanding_interest_balance=None,
+    BoC_Sums_Collected=None
 ):
-    
-    quarterly_new_loans = estimate_canada_proxy_loans(start_year=1905, end_year=this_year + years_to_predict)
 
-    if schedule_covid is None:
-        schedule_covid, total_interest = generate_federal_debt_schedule_predictive(
-            initial_debt,
-            annual_rate,
-            quarterly_new_loans,
-            years_to_predict,
-            loan_growth_rate=dynamic_loan_growth,
-            crisis_loans=crisis_loans
-        )
-
-    print_quarterly_schedule(schedule_covid, total_interest_paid, outstanding_interest_balance, max_rows=len(schedule_covid))
+    print_quarterly_schedule(schedule_covid, outstanding_interest_balance, max_rows=len(schedule_covid))
 
     crossover = find_debt_gdp_crossover_quarterly(schedule_covid, this_year, initial_gdp, real_gdp_quarterly_growth)
     if crossover:
@@ -322,7 +305,7 @@ def plotting(
     years_covid = [f"{entry['Year']} {entry['Quarter']}" for entry in schedule_covid]
     balances_covid = [entry["Balance End (CAD bn)"] for entry in schedule_covid]
 
-    unsustainable = find_unsustainable_tax_quarter_quarterly(schedule_covid, this_year, initial_gdp, real_gdp_quarterly_growth, tax_to_gdp_ratio=tax_to_gdp_ratio)
+    unsustainable, BoC_Sums_Remaining = find_unsustainable_tax_quarter_quarterly(schedule_covid, initial_gdp, real_gdp_quarterly_growth, BoC_Sums_Collected, tax_to_gdp_ratio=tax_to_gdp_ratio, )
     if unsustainable:
         print("\n🚨 Fiscal Unsustainability Detected")
         print(f"Quarter: {unsustainable['Year']} {unsustainable['Quarter']}")
@@ -341,6 +324,8 @@ def plotting(
     print(f"📆 Estimated Annualized Debt Growth Rate: {debt_growth_a:.4%}")
     if unsustainable:
         print(f"TRY INCREASING GROWTH ABOVE ESTIMATED ANNUALIZED DEBT GROWTH RATE :D --> in main --> gdp_growth = {gdp_growth_rate} < {debt_growth_a*100:.4}")
+    else:
+        print(f"FISCAL POLICY HAS GENERATED FREE CASH FLOW --> ALL DEBT FEDERAL DEBT PAID IN FULL --> {BoC_Sums_Remaining:.2f} Billion")
 
     # Plot
     plt.figure(figsize=(16, 6))
@@ -390,7 +375,7 @@ def generate_quarterly_inflation_series(historical_data, multiplier):
         quarterly_inflation_rates.extend([quarterly_rate] * 4)
     return quarterly_inflation_rates
 
-def compute_real_gdp_per_capita_growth(data, initial_gdp, initial_population=5.37):  # e.g., 5.37 million in 1905
+def compute_real_gdp_per_capita_growth(data, initial_gdp, initial_population=41.5):  # e.g., 5.37 million in 1905 41.5 Million in 2025
     results = []
     current_gdp = initial_gdp
     current_pop = initial_population
@@ -409,10 +394,10 @@ def compute_real_gdp_per_capita_growth(data, initial_gdp, initial_population=5.3
 
         current_gdp *= growth_factor
         current_pop *= pop_growth_factor
-        total_real_gdp = current_gdp * current_pop
+        total_real_gdp = current_gdp
 
         quarterly_growth_factor = growth_factor ** (1 / 4)
-        quarterly_gdps = [current_gdp * (quarterly_growth_factor ** i) * current_pop for i in range(1, 5)]
+        quarterly_gdps = [current_gdp * (quarterly_growth_factor ** i) for i in range(1, 5)]
 
         results.append({
             "year": year,
@@ -427,7 +412,7 @@ def compute_real_gdp_per_capita_growth(data, initial_gdp, initial_population=5.3
 
 
 
-def generate_canada_historical_data(years_projection, gdp_growth):
+def generate_canada_historical_data(years_projection, gdp_growth, start_year):
     # Approximate population in millions for census years
     pop_census = {
         1901: 5.37,
@@ -537,7 +522,7 @@ def generate_canada_historical_data(years_projection, gdp_growth):
 
     # Build the full historical data list
     historical_data = []
-    for year in range(1905, 2026+years_projection):
+    for year in range(start_year, 2026+years_projection):
         if year < this_year:
             data = {
                 "year": year,
@@ -556,9 +541,9 @@ def generate_canada_historical_data(years_projection, gdp_growth):
 
     return historical_data
 
-def Federal_Debt_Acquisition_Boc_DEbt_Repayment(historical_data, crisis_loans,this_year, years_to_predict, initial_debt,  annual_rate, BoC_Investments_ROI):
+def Federal_Debt_Acquisition_Boc_DEbt_Repayment(historical_data, crisis_loans,this_year, start_year, years_to_predict, initial_debt,  annual_rate, BoC_Investments_ROI, share_guarantees_tax):
 
-    Base_year = 1905
+    Base_year = start_year
 
     BoC_Rate = 0.0175 # 1.75 percent
 
@@ -583,10 +568,10 @@ def Federal_Debt_Acquisition_Boc_DEbt_Repayment(historical_data, crisis_loans,th
             loaned = False
         #if Base_year >= this_year:
         if quarterly_inflation[i]*4 >= BoC_Rate:
-            Sums_Collected += BoC_Rate * real_gdp
+            Sums_Collected += real_gdp * (share_guarantees_tax - BoC_Rate) # 18% - 1.175% on ressources guarantees behind 467,468.469 of laws of the banks. (18% to keep AAA Rating)
         else:
             #BoC Borrows from the DEBT
-            Debt_Loan =  BoC_Rate * real_gdp
+            Debt_Loan =  real_gdp * (share_guarantees_tax - BoC_Rate) 
             Sums_Collected += Debt_Loan
             key = (Base_year, f"Q{Count}")
             if key not in crisis_loans:
@@ -596,12 +581,13 @@ def Federal_Debt_Acquisition_Boc_DEbt_Repayment(historical_data, crisis_loans,th
             loaned = True
         Count += 1
 
-    quarterly_new_loans = estimate_canada_proxy_loans(start_year=1905, end_year=this_year + years_to_predict)
+    quarterly_new_loans = estimate_canada_proxy_loans(start_year=start_year, end_year=this_year + years_to_predict)
 
     schedule, total_interest = generate_federal_debt_schedule_predictive(
         initial_debt,
         annual_rate,
         quarterly_new_loans,
+        start_year,
         years_to_predict,
         loan_growth_rate=dynamic_loan_growth,
         crisis_loans=crisis_loans,
@@ -624,51 +610,52 @@ def Federal_Debt_Acquisition_Boc_DEbt_Repayment(historical_data, crisis_loans,th
         total_interest = 0
     else:
         total_interest -= Sums_Collected
-        total_interest = Sums_Collected - total_interest
+        Sums_Collected = 0
     
     return Sums_Collected, crisis_loans, schedule, total_interest
 
 if __name__ == "__main__":
     confederation_year = 1867
     this_year = 2025
-    initial_debt = 0.275    # 275 million in 1905
+    start_year = 2025
+    initial_debt = 1800    # 275 million in 1905 0.275 billion (default)
     annual_rate = 0.028
-    initial_gdp = 169    # 169 Billion in 1905 and 2240 for 2025 (2.24 trillion)
-    gdp_growth = 1.6    # %%%%%%%%%%%%%%%%%%%%%%%%% 2025 %%%%%%%%%%%%%%%%%%%%%%% --> adjust this to today GDP growth percentage (%).
-    hst_province_cut = 0.075
-    hst = 0.15 - hst_province_cut       # HARMONIZED SALES TAX
+    initial_gdp = 2240    # 169 Billion in 1905 and 2240 for 2025 (2.24 trillion)
+    gdp_growth = 1.6     # %%%%%%%%%%%%%%%%%%%%%%%%% 2025 %%%%%%%%%%%%%%%%%%%%%%% --> adjust this to today GDP growth percentage (%).
+    corporate_tax = 0.2  # Corporate taxes
     BoC_Sums_Collected = 0
     crisis_loans = {
         (2020, "Q2"): {"amount": 600, "term_years": 15, "interest_rate": 0.0175},  # 1.75% BoC rate
     }
     BoC_Investments_ROI = 0.08 # 8 percent return on investments (Medium Risk)
+    share_guarantees_tax = 0.14 # 14% - 1.75% on ressources guarantees behind 467,468.469 of laws of the banks. (18% to keep AAA Rating)
     schedule = None
     total_interest = 0
 
-    years_to_predict_50 = 50
+    years_to_predict_1 = 1
 
-    historical_data = generate_canada_historical_data(years_to_predict_50, gdp_growth)
+    historical_data = generate_canada_historical_data(years_to_predict_1, gdp_growth, start_year)
 
-    BoC_Sums_Collected, crisis_loans, schedule, total_interest = Federal_Debt_Acquisition_Boc_DEbt_Repayment(historical_data, crisis_loans,this_year, years_to_predict_50, initial_debt,  annual_rate, BoC_Investments_ROI) #Comment out to filter out this scenario.
+    BoC_Sums_Collected, crisis_loans, schedule, total_interest = Federal_Debt_Acquisition_Boc_DEbt_Repayment(historical_data, crisis_loans,this_year, start_year, years_to_predict_1, initial_debt,  annual_rate, BoC_Investments_ROI, share_guarantees_tax) #Comment out to filter out this scenario.
 
     yearly_real_gdp = compute_real_gdp_per_capita_growth(historical_data, initial_gdp)
 
-    real_gdp_1905_2075_Q1_Q4 = [g for entry in yearly_real_gdp for g in entry["quarterly_real_gdp"]]
+    real_gdp_2025_2026_Q1_Q4 = [g for entry in yearly_real_gdp for g in entry["quarterly_real_gdp"]]
                                                                               
-    ratio_50 , unsustainable = plotting(initial_debt, annual_rate, initial_gdp, years_to_predict_50, this_year, f"{years_to_predict_50} years",real_gdp_1905_2075_Q1_Q4, hst, crisis_loans, gdp_growth, schedule, total_interest, BoC_Sums_Collected-total_interest)
+    ratio_50 , unsustainable = plotting(initial_gdp, this_year, f"{years_to_predict_1} years",real_gdp_2025_2026_Q1_Q4, corporate_tax, gdp_growth, schedule, total_interest, BoC_Sums_Collected)
 
     if not unsustainable:
-        years_to_predict = 300
+        years_to_predict_300 = 4 # 300 to find out something about 1.6 % growth (2025)
 
-        historical_data = generate_canada_historical_data(years_to_predict, gdp_growth)
+        historical_data = generate_canada_historical_data(years_to_predict_300, gdp_growth, start_year)
 
-        BoC_Sums_Collected, crisis_loans, schedule, total_interest = Federal_Debt_Acquisition_Boc_DEbt_Repayment(historical_data, crisis_loans,this_year, years_to_predict, initial_debt,  annual_rate, BoC_Investments_ROI) #Comment out to filter out this scenario.
+        BoC_Sums_Collected, crisis_loans, schedule, total_interest = Federal_Debt_Acquisition_Boc_DEbt_Repayment(historical_data, crisis_loans,this_year, start_year, years_to_predict_300, initial_debt,  annual_rate, BoC_Investments_ROI, share_guarantees_tax) #Comment out to filter out this scenario.
 
         yearly_real_gdp = compute_real_gdp_per_capita_growth(historical_data, initial_gdp)
 
-        real_gdp_1905_2325_Q1_Q4 = [g for entry in yearly_real_gdp for g in entry["quarterly_real_gdp"]]
+        real_gdp_2025_2325_Q1_Q4 = [g for entry in yearly_real_gdp for g in entry["quarterly_real_gdp"]]
 
-        ratio_300, unsustainable = plotting(initial_debt, annual_rate, initial_gdp, years_to_predict, this_year, f"{years_to_predict} years",  real_gdp_1905_2325_Q1_Q4, hst, crisis_loans, gdp_growth, schedule, total_interest, BoC_Sums_Collected-total_interest)
+        ratio_300, unsustainable = plotting(initial_gdp, this_year, f"{years_to_predict_300} years",real_gdp_2025_2325_Q1_Q4, corporate_tax, gdp_growth, schedule, total_interest, BoC_Sums_Collected)
 
         if unsustainable:
             print(f"RESULT: At year {unsustainable-confederation_year} after Confederation of Canada, taxes alone will not support repayment of the federal debt!")
