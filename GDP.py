@@ -324,8 +324,6 @@ def plotting(
     print(f"📆 Estimated Annualized Debt Growth Rate: {debt_growth_a:.4%}")
     if unsustainable:
         print(f"TRY INCREASING GROWTH ABOVE ESTIMATED ANNUALIZED DEBT GROWTH RATE :D --> in main --> gdp_growth = {gdp_growth_rate} < {debt_growth_a*100:.4}")
-    else:
-        print(f"FISCAL POLICY HAS GENERATED FREE CASH FLOW --> ALL DEBT FEDERAL DEBT PAID IN FULL --> {BoC_Sums_Remaining:.2f} Billion")
 
     # Plot
     plt.figure(figsize=(16, 6))
@@ -356,10 +354,10 @@ def plotting(
     plt.show()
 
     if unsustainable:
-        return unsustainable['Debt'] / unsustainable['GDP'] * 100, unsustainable["Year"]
+        return unsustainable['Debt'] / unsustainable['GDP'] * 100, unsustainable["Year"], BoC_Sums_Remaining
     else:
         # Return estimated debt growth compared to GDP end value
-        return debt_growth_a / real_gdp_quarterly_growth[-1]*4 * 100, None
+        return debt_growth_a / real_gdp_quarterly_growth[-1]*4 * 100, None, BoC_Sums_Remaining
 
 def generate_quarterly_inflation_series(historical_data, multiplier):
     """
@@ -642,7 +640,7 @@ if __name__ == "__main__":
 
     real_gdp_2025_2026_Q1_Q4 = [g for entry in yearly_real_gdp for g in entry["quarterly_real_gdp"]]
                                                                               
-    ratio_50 , unsustainable = plotting(initial_gdp, this_year, f"{years_to_predict_1} years",real_gdp_2025_2026_Q1_Q4, corporate_tax, gdp_growth, schedule, total_interest, BoC_Sums_Collected)
+    ratio_50 , unsustainable, BoC_Sums_Remaining = plotting(initial_gdp, this_year, f"{years_to_predict_1} years",real_gdp_2025_2026_Q1_Q4, corporate_tax, gdp_growth, schedule, total_interest, BoC_Sums_Collected)
 
     if not unsustainable:
         years_to_predict_300 = 4 # 300 to find out something about 1.6 % growth (2025)
@@ -655,13 +653,42 @@ if __name__ == "__main__":
 
         real_gdp_2025_2325_Q1_Q4 = [g for entry in yearly_real_gdp for g in entry["quarterly_real_gdp"]]
 
-        ratio_300, unsustainable = plotting(initial_gdp, this_year, f"{years_to_predict_300} years",real_gdp_2025_2325_Q1_Q4, corporate_tax, gdp_growth, schedule, total_interest, BoC_Sums_Collected)
+        ratio_300, unsustainable, BoC_Sums_Remaining= plotting(initial_gdp, this_year, f"{years_to_predict_300} years",real_gdp_2025_2325_Q1_Q4, corporate_tax, gdp_growth, schedule, total_interest, BoC_Sums_Collected)
 
         if unsustainable:
             print(f"RESULT: At year {unsustainable-confederation_year} after Confederation of Canada, taxes alone will not support repayment of the federal debt!")
             print(f"This leaves us...{unsustainable-this_year} years to react.")
         else:
-            print("RESULT: GDP ADJUSTED TO DEBT GROWTH!")
+            print("                     _ooOoo_")
+            print("                    o8888888o")
+            print("                    88\" . \"88")
+            print("                    (| -_- |)")
+            print("                    O\\  =  /O")
+            print("                 ____/`---'\\____")
+            print("               .'  \\\\|     |//  `.")
+            print("              /  \\\\|||  :  |||//  \\")
+            print("             /  _||||| -:- |||||_  \\")
+            print("            |   | \\\\\\  -  /'| |    |")
+            print("            | \\_|  `\\`---'//  |_/  |")
+            print("            \\  .-\\__ `-. -'__/-.  /")
+            print("          ___`. .'  /--.--\\  `. .'___")
+            print("       .\"\" '<  `.___\\_<|>_/___.' _> \"\".")
+            print("      | | :  `- \\`. ;`. _/; .'/ /  .' ; |")
+            print("      \\  \\ `-.   \\_\\_`. _.'_/_/  -' _.' /")
+            print("       books open O  |_____|  O     /__\\")
+            print("       ________________|________________")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("! A L L  F E D E R A L  D E B T  P A I D  I N  F U L L !")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("!!!!!!!!!!!!!! F I S C A L  P O L I C Y !!!!!!!!!!!!!!!!")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("!!!!!!!!!!!!!!-== UNDER EMERGENCY ACT==-!!!!!!!!!!!!!!!!")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("!!!!!!!!!!!!!!! --> FREED CASH FLOW <-- !!!!!!!!!!!!!!!!")
+            print(f"!!!!!!!!!!!!!!! --> {BoC_Sums_Remaining:.2f} Billion <-- !!!!!!!!!!!!!!!!")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("! A L L  F E D E R A L  D E B T  P A I D  I N  F U L L !")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     else:
         print(f"RESULT: At year {unsustainable-confederation_year} after Confederation of Canada, taxes alone will not support repayment of the federal debt!")
         print(f"This leaves us...{unsustainable-this_year} years to react.")
